@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, FileText, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, FileText, AlertCircle, Loader2, CheckCircle } from 'lucide-react';
 import { parseCSV, validateCSVFile } from '../../core/csvParser';
 import { profileDataset } from '../../core/profiler';
 import { calculateKPIs } from '../../core/kpiCalculator';
@@ -8,19 +8,24 @@ import { recommendCharts } from '../../core/chartRecommender';
 import { analyzeAllColumns } from '../../core/anomalyDetector';
 import { generateInsights } from '../../services/aiInsightService';
 import { saveDashboardState } from '../../services/storageService';
+import { DataRow } from '../../core/types';
+import DataTable from '../components/DataTable';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function LandingPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [previewData, setPreviewData] = useState<DataRow[] | null>(null);
+  const [fileName, setFileName] = useState<string>('');
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
-  // Обработка выбранного файла
-  const processFile = useCallback(async (file: File) => {
+  // Шаг 1: Выбор файла и быстрый парсинг для предпросмотра
+  const handleFileSelect = useCallback(async (file: File) => {
     setError(null);
 
-    // 1. Валидация
     const validation = validateCSVFile(file);
     if (!validation.valid) {
       setError(validation.error || 'Ошибка валидации файла');
@@ -28,26 +33,41 @@ export default function LandingPage() {
     }
 
     setIsLoading(true);
+    setFileName(file.name);
 
     try {
-      // 2. Парсинг CSV
       const { data } = await parseCSV(file);
       if (data.length === 0) {
         throw new Error('Файл пуст или не содержит корректных данных');
       }
 
-      // 3. Профилирование и анализ
-      const profile = profileDataset(data);
-      const kpis = calculateKPIs(data, profile);
-      const recommendations = recommendCharts(profile, data);
-      const { anomalies, trends } = analyzeAllColumns(data, profile.columns);
+      // Показываем предпросмотр
+      setPreviewData(data);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Произошла неизвестная ошибка при чтении файла';
+      setError(message);
+      setPreviewData(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-      // 4. Генерация AI-инсайтов (mock или gemini)
+  // Шаг 2: Глубокий анализ и переход на дашборд
+  const handleAnalyze = useCallback(async () => {
+    if (!previewData) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const profile = profileDataset(previewData);
+      const kpis = calculateKPIs(previewData, profile);
+      const recommendations = recommendCharts(profile, previewData);
+      const { anomalies, trends } = analyzeAllColumns(previewData, profile.columns);
       const insights = await generateInsights(profile, kpis, anomalies, trends);
 
-      // 5. Сохранение состояния в LocalStorage
       const dashboardState = {
-        rawData: data,
+        rawData: previewData,
         profile,
         kpis,
         recommendations,
@@ -60,15 +80,23 @@ export default function LandingPage() {
         console.warn('Не удалось сохранить данные в LocalStorage (возможно, превышен лимит).');
       }
 
-      // 6. Переход на дашборд
       navigate('/dashboard');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Произошла неизвестная ошибка при обработке файла';
+      const message = err instanceof Error ? err.message : 'Ошибка при анализе данных';
       setError(message);
     } finally {
       setIsLoading(false);
     }
-  }, [navigate]);
+  }, [previewData, navigate]);
+
+  const handleReset = () => {
+    setPreviewData(null);
+    setFileName('');
+    setError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   // Обработчики Drag & Drop
   const handleDragOver = (e: React.DragEvent) => {
@@ -90,14 +118,14 @@ export default function LandingPage() {
 
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
-      processFile(files[0]);
+      handleFileSelect(files[0]);
     }
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      processFile(files[0]);
+      handleFileSelect(files[0]);
     }
   };
 
@@ -107,11 +135,11 @@ export default function LandingPage() {
 
   return (
       <div className="app-container" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        {/* Шапка */}
         <header className="app-header" style={{
           padding: '16px 32px',
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'space-between',
           borderBottom: '1px solid var(--color-bg-tertiary)'
         }}>
           <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -121,97 +149,146 @@ export default function LandingPage() {
             </svg>
             <h1 style={{ fontSize: '20px', margin: 0 }}>AI BI Dashboard</h1>
           </div>
+          <ThemeToggle />
         </header>
 
-        {/* Основной контент */}
         <main className="app-main" style={{
           flex: 1,
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
           padding: '32px'
         }}>
-          <div className="card" style={{ maxWidth: '600px', width: '100%' }}>
-            <div className="card__header">
-              <h2 className="card__title">Загрузка данных</h2>
-            </div>
-            <div className="card__body">
-              <p style={{ marginBottom: '24px', color: 'var(--color-text-secondary)' }}>
-                Загрузите CSV-файл с вашими данными. Система автоматически проанализирует их,
-                построит графики и сгенерирует отчёт с помощью ИИ.
-              </p>
+          {/* Если данные ещё не выбраны, показываем зону загрузки */}
+          {!previewData && (
+              <div className="card" style={{ maxWidth: '600px', width: '100%' }}>
+                <div className="card__header">
+                  <h2 className="card__title">Загрузка данных</h2>
+                </div>
+                <div className="card__body">
+                  <p style={{ marginBottom: '24px', color: 'var(--color-text-secondary)' }}>
+                    Загрузите CSV-файл с вашими данными. Система покажет предпросмотр,
+                    а затем автоматически проанализирует их и построит отчёт.
+                  </p>
 
-              {/* Зона Drag & Drop */}
-              <div
-                  className={`upload-zone ${isDragging ? 'upload-zone--active' : ''}`}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  onClick={triggerFileInput}
-                  style={{ cursor: isLoading ? 'default' : 'pointer' }}
-              >
-                {isLoading ? (
-                    <>
-                      <Loader2 className="upload-zone__icon spinner" />
-                      <div className="upload-zone__title">Обработка данных...</div>
-                      <div className="upload-zone__description">
-                        Парсинг, профилирование и генерация инсайтов
-                      </div>
-                    </>
-                ) : (
-                    <>
-                      <Upload className="upload-zone__icon" />
-                      <div className="upload-zone__title">Перетащите CSV-файл сюда</div>
-                      <div className="upload-zone__description">
-                        или нажмите, чтобы выбрать файл с компьютера
-                      </div>
-                      <div className="upload-zone__hint">
-                        Поддерживаются файлы .csv и .txt (макс. 10MB)
-                      </div>
-                    </>
-                )}
-              </div>
-
-              {/* Скрытый инпут для выбора файла */}
-              <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv,.txt"
-                  onChange={handleFileInput}
-                  style={{ display: 'none' }}
-                  disabled={isLoading}
-              />
-
-              {/* Отображение ошибок */}
-              {error && (
-                  <div className="form-error" style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    marginTop: '16px',
-                    padding: '12px',
-                    background: 'rgba(239, 68, 68, 0.1)',
-                    borderRadius: 'var(--radius-md)'
-                  }}>
-                    <AlertCircle size={16} />
-                    <span>{error}</span>
+                  <div
+                      className={`upload-zone ${isDragging ? 'upload-zone--active' : ''}`}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      onClick={triggerFileInput}
+                      style={{ cursor: isLoading ? 'default' : 'pointer' }}
+                  >
+                    {isLoading ? (
+                        <>
+                          <Loader2 className="upload-zone__icon spinner" />
+                          <div className="upload-zone__title">Чтение файла...</div>
+                        </>
+                    ) : (
+                        <>
+                          <Upload className="upload-zone__icon" />
+                          <div className="upload-zone__title">Перетащите CSV-файл сюда</div>
+                          <div className="upload-zone__description">
+                            или нажмите, чтобы выбрать файл с компьютера
+                          </div>
+                          <div className="upload-zone__hint">
+                            Поддерживаются файлы .csv и .txt (макс. 10MB)
+                          </div>
+                        </>
+                    )}
                   </div>
-              )}
 
-              {/* Кнопка выбора файла (альтернатива drag & drop) */}
-              {!isLoading && (
-                  <div style={{ textAlign: 'center', marginTop: '24px' }}>
-                    <button
-                        className="btn btn--primary btn--lg"
-                        onClick={triggerFileInput}
-                    >
-                      <FileText size={18} />
-                      Выбрать CSV-файл
+                  <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv,.txt"
+                      onChange={handleFileInput}
+                      style={{ display: 'none' }}
+                      disabled={isLoading}
+                  />
+
+                  {error && (
+                      <div className="form-error" style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        marginTop: '16px',
+                        padding: '12px',
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        borderRadius: 'var(--radius-md)'
+                      }}>
+                        <AlertCircle size={16} />
+                        <span>{error}</span>
+                      </div>
+                  )}
+                </div>
+              </div>
+          )}
+
+          {/* Если данные загружены, показываем предпросмотр и кнопку анализа */}
+          {previewData && (
+              <div style={{ width: '100%', maxWidth: '1200px' }}>
+                <div className="card" style={{ marginBottom: '24px' }}>
+                  <div className="card__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <CheckCircle size={24} style={{ color: 'var(--color-success)' }} />
+                      <div>
+                        <h2 className="card__title" style={{ margin: 0 }}>Файл успешно загружен</h2>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: 'var(--color-text-secondary)' }}>
+                          {fileName} • {previewData.length} строк
+                        </p>
+                      </div>
+                    </div>
+                    <button className="btn btn--ghost" onClick={handleReset}>
+                      Загрузить другой файл
                     </button>
                   </div>
-              )}
-            </div>
-          </div>
+                </div>
+
+                <div className="data-preview-section" style={{ marginBottom: '24px' }}>
+                  <DataTable data={previewData} maxRows={50} />
+                </div>
+
+                <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
+                  <button className="btn btn--ghost" onClick={handleReset}>
+                    Отмена
+                  </button>
+                  <button
+                      className="btn btn--primary btn--lg"
+                      onClick={handleAnalyze}
+                      disabled={isLoading}
+                  >
+                    {isLoading ? (
+                        <>
+                          <Loader2 className="spinner spinner--sm" />
+                          <span>Анализ данных и генерация отчёта...</span>
+                        </>
+                    ) : (
+                        <>
+                          <FileText size={18} />
+                          <span>Проанализировать и перейти к дашборду</span>
+                        </>
+                    )}
+                  </button>
+                </div>
+
+                {error && (
+                    <div className="form-error" style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      marginTop: '16px',
+                      justifyContent: 'center',
+                      padding: '12px',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      borderRadius: 'var(--radius-md)'
+                    }}>
+                      <AlertCircle size={16} />
+                      <span>{error}</span>
+                    </div>
+                )}
+              </div>
+          )}
         </main>
       </div>
   );
