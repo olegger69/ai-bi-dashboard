@@ -1,0 +1,306 @@
+/* ============================================
+   ОСНОВНАЯ РАЗМЕТКА ПРИЛОЖЕНИЯ
+   ============================================ */
+
+.app-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--color-bg-primary);
+}
+
+.app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-md) var(--spacing-xl);
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    border-bottom: 1px solid var(--color-bg-tertiary);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.logo h1 {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0;
+    color: var(--color-text-primary);
+}
+
+.app-nav {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.app-main {
+    flex: 1;
+    padding: var(--spacing-xl);
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* ============================================
+   СВОДКА ПО ДАННЫМ
+   ============================================ */
+
+.summary-section {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-xl);
+    margin-bottom: var(--spacing-xl);
+    box-shadow: var(--glass-shadow);
+}
+
+.summary-section h2 {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    margin-bottom: var(--spacing-lg);
+    color: var(--color-text-primary);
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--spacing-lg);
+}
+
+.summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.summary-label {
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.summary-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+/* ============================================
+   KPI СЕКЦИЯ
+   ============================================ */
+
+.kpi-section {
+    margin-bottom: var(--spacing-xl);
+}
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--spacing-md);
+}
+
+/* ============================================
+   ГРАФИКИ СЕКЦИЯ
+   ============================================ */
+
+/* ============================================
+   ГРАФИКИ СЕКЦИЯ (вертикальная раскладка)
+   ============================================ */
+
+.charts-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xl);
+    margin-bottom: var(--spacing-xl);
+}
+
+.chart-card {
+    width: 100%;
+    min-height: auto;
+}
+
+.chart-description {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    margin-bottom: var(--spacing-md);
+}
+
+.chart-container-large {
+    height: 350px;
+    width: 100%;
+    overflow-x: auto;
+}
+
+/* ============================================
+   AI INSIGHTS СЕКЦИЯ
+   ============================================ */
+
+.insights-section {
+    margin-bottom: var(--spacing-xl);
+}
+
+/* ============================================
+   АДАПТИВНОСТЬ
+   ============================================ */
+
+@media (max-width: 768px) {
+    .app-header {
+        flex-direction: column;
+        gap: var(--spacing-md);
+        padding: var(--spacing-md);
+    }
+
+    .app-nav {
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .app-main {
+        padding: var(--spacing-md);
+    }
+
+    .summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .kpi-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .charts-section {
+        grid-template-columns: 1fr;
+    }
+
+    .chart-container {
+        height: 250px;
+    }
+}
+
+@media (max-width: 480px) {
+    .summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .app-nav {
+        flex-direction: column;
+    }
+
+    .btn {
+        width: 100%;
+    }
+}
+
+/* ============================================
+   ДВУХКОЛОНОЧНАЯ РАСКЛАДКА ДАШБОРДА
+   ============================================ */
+
+.dashboard-two-column {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 24px;
+    margin-bottom: 32px;
+}
+
+.dashboard-left {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.dashboard-right {
+    position: relative;
+}
+
+.insights-section.sticky {
+    position: sticky;
+    top: 80px;
+}
+
+/* ============================================
+   ТАБЛИЦА ПРЕДПРОСМОТРА ДАННЫХ
+   ============================================ */
+
+.data-preview-section {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-xl);
+    box-shadow: var(--glass-shadow);
+}
+
+.data-table-wrapper {
+    width: 100%;
+}
+
+.data-table-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin-bottom: var(--spacing-md);
+    color: var(--color-text-primary);
+}
+
+.data-table-scroll {
+    overflow-x: auto;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+}
+
+.data-table th {
+    position: sticky;
+    top: 0;
+    background-color: var(--color-bg-tertiary);
+    font-weight: 600;
+    color: var(--color-text-primary);
+    padding: var(--spacing-sm) var(--spacing-md);
+    text-align: left;
+    border-bottom: 2px solid var(--color-bg-tertiary);
+    z-index: 1;
+}
+
+.data-table td {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-bottom: 1px solid var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+}
+
+.data-table tr:hover td {
+    background-color: var(--color-accent-light);
+}
+
+/* ============================================
+   АДАПТИВНОСТЬ ДВУХКОЛОНОЧНОЙ РАСКЛАДКИ
+   ============================================ */
+
+@media (max-width: 1024px) {
+    .dashboard-two-column {
+        grid-template-columns: 1fr;
+    }
+
+    .insights-section.sticky {
+        position: static;
+    }
+}
+
+.chart-container-large {
+    height: 350px;
+    width: 100%;
+    overflow-x: auto;
+}
