@@ -1,68 +1,65 @@
-// Основные типы данных для AI BI Dashboard
+// Тип для одной строки данных из CSV
+export interface DataRow {
+  [key: string]: string | number | null;
+}
 
-// Типы данных в колонках CSV
-export type ColumnType = 'numeric' | 'categorical' | 'date' | 'text' | 'unknown';
-
-// Одна строка данных из CSV (ключ - имя колонки, значение - строковое представление)
-export type DataRow = Record<string, string | number | null>;
-
-// Метаданные одной колонки после профилирования
+// Метаданные одного столбца
 export interface ColumnMeta {
   name: string;
-  type: ColumnType;
-  missingCount: number;
+  type: 'number' | 'category' | 'date' | 'text';
   uniqueCount: number;
-  // Дополнительные статистические данные для числовых колонок
+  missingCount: number;
   min?: number;
   max?: number;
   mean?: number;
-  // Топ-значения для категориальных колонок
-  topValues?: { value: string; count: number }[];
+  median?: number;
+  stdDev?: number;
+  topValues?: Array<{ value: string; count: number }>;
 }
 
-// Полный профиль набора данных
+// Полный профиль датасета
 export interface DatasetProfile {
   totalRows: number;
   totalColumns: number;
   columns: ColumnMeta[];
 }
 
-// KPI для отображения на дашборде и в отчете
+// KPI показатель
 export interface KPI {
   id: string;
   label: string;
-  value: string | number;
+  value: string;
+  description?: string;
   trend?: 'up' | 'down' | 'neutral';
   trendValue?: string;
-  description?: string;
 }
 
-// Рекомендация по типу графика
-export interface ChartRecommendation {
-  id: string;
-  chartType: 'line' | 'bar' | 'scatter';
-  title: string;
-  xColumn: string;
-  yColumn: string;
-  description: string;
-}
-
-// Результаты анализа ИИ (или мок-режима)
+// AI инсайт (хранит уже сгенерированные текстовые выводы)
 export interface AIInsight {
   summary: string;
   trends: string[];
   anomalies: string[];
   recommendations: string[];
-  mode: 'mock' | 'gemini'; // Указывает, какой режим сгенерировал вывод
+  mode: 'mock' | 'groq' | 'gemini';
   generatedAt: string;
 }
 
-// Полное состояние сессии дашборда (для сохранения в LocalStorage)
+// Рекомендация графика
+export interface ChartRecommendation {
+  id: string;
+  chartType: 'line' | 'bar' | 'scatter';
+  title: string;
+  description: string;
+  xColumn: string;
+  yColumn: string;
+}
+
+// Состояние дашборда (сохраняется в localStorage)
 export interface DashboardState {
   rawData: DataRow[];
   profile: DatasetProfile;
   kpis: KPI[];
   recommendations: ChartRecommendation[];
-  insights: AIInsight | null;
+  insights: AIInsight;
   lastUpdated: string;
 }

@@ -86,7 +86,8 @@ export function detectAnomalies(
     data: DataRow[],
     column: ColumnMeta
 ): AnomalyResult | null {
-    if (column.type !== 'numeric') return null;
+    // ИСПРАВЛЕНО: 'numeric' заменено на 'number'
+    if (column.type !== 'number') return null;
 
     const values = extractNumericValues(data, column.name);
     if (values.length === 0) return null;
@@ -135,7 +136,8 @@ export function detectTrend(
     data: DataRow[],
     column: ColumnMeta
 ): TrendResult | null {
-    if (column.type !== 'numeric' || data.length < 4) return null;
+    // ИСПРАВЛЕНО: 'numeric' заменено на 'number'
+    if (column.type !== 'number' || data.length < 4) return null;
 
     const values = extractNumericValues(data, column.name);
     if (values.length < 4) return null;
@@ -184,7 +186,7 @@ export function analyzeAllColumns(
     const trends: TrendResult[] = [];
 
     for (const column of columns) {
-        if (column.type === 'numeric') {
+        if (column.type === 'number') {
             const anomaly = detectAnomalies(data, column);
             if (anomaly && anomaly.outlierCount > 0) {
                 anomalies.push(anomaly);

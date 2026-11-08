@@ -367,7 +367,7 @@ export default function DashboardPage() {
                                     )}
 
                                     <div className="insights-panel__mode">
-                                        <span>Режим: {insights.mode === 'gemini' ? 'Gemini AI' : 'Правила (Mock)'}</span>
+                                        <span>Режим: {insights.mode === 'groq' ? 'Groq (gpt-oss-20b)' : insights.mode === 'gemini' ? 'Gemini AI' : 'Правила (Mock)'}</span>
                                         <span>Сгенерировано: {formatInsightDate(insights.generatedAt)}</span>
                                     </div>
                                 </div>
