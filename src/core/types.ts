@@ -34,27 +34,34 @@ export interface KPI {
   trendValue?: string;
 }
 
-// AI инсайт (хранит уже сгенерированные текстовые выводы)
+// KPI с сравнением периодов
+export interface KPIWithComparison extends KPI {
+  previousValue?: string;
+  changePercent?: number;
+  changeAbsolute?: number;
+}
+
+// AI инсайт
 export interface AIInsight {
   summary: string;
   trends: string[];
   anomalies: string[];
   recommendations: string[];
-  mode: 'mock' | 'groq' | 'gemini';
+  mode: 'mock' | 'groq' | 'gemini' | 'openrouter';
   generatedAt: string;
 }
 
 // Рекомендация графика
 export interface ChartRecommendation {
   id: string;
-  chartType: 'line' | 'bar' | 'scatter';
+  chartType: 'line' | 'bar' | 'scatter' | 'pie' | 'heatmap';
   title: string;
   description: string;
   xColumn: string;
   yColumn: string;
 }
 
-// Состояние дашборда (сохраняется в localStorage)
+// Состояние дашборда
 export interface DashboardState {
   rawData: DataRow[];
   profile: DatasetProfile;

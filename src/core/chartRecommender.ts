@@ -1,177 +1,100 @@
-import { DataRow, DatasetProfile, ChartRecommendation } from './types';
-import { getColumnsByType } from './profiler';
+import { DatasetProfile, ChartRecommendation, DataRow } from './types';
 
-// Интерфейс для агрегированных данных графика
-export interface ChartDataPoint {
-    [key: string]: string | number;
+function aggregateData(data: DataRow[], xCol: string, yCol: string) {
+    const map = new Map<string, number>();
+    data.forEach(row => {
+        const xVal = String(row[xCol] ?? '').trim();
+        const rawY = row[yCol];
+        const yVal = typeof rawY === 'number'
+            ? rawY
+            : parseFloat(String(rawY).replace(/[^0-9.-]+/g, '')) || 0;
+        map.set(xVal, (map.get(xVal) || 0) + yVal);
+    });
+    return Array.from(map.entries())
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
 }
 
-// Главная функция: рекомендует графики на основе профиля данных
-export function recommendCharts(
-    profile: DatasetProfile,
-    _data: DataRow[]
-): ChartRecommendation[] {
+export function getChartData(rec: ChartRecommendation, data: DataRow[]) {
+    if (rec.chartType === 'pie' || rec.chartType === 'bar') {
+        return aggregateData(data, rec.xColumn, rec.yColumn);
+    }
+    return data;
+}
+
+export function recommendCharts(profile: DatasetProfile, _data: DataRow[]): ChartRecommendation[] {
     const recommendations: ChartRecommendation[] = [];
-    let chartIndex = 0;
 
-    const numericColumns = getColumnsByType(profile, 'numeric');
-    const categoricalColumns = getColumnsByType(profile, 'categorical');
-    const dateColumns = getColumnsByType(profile, 'date');
+    const typeNumCols = profile.columns.filter(c => c.type === 'number').map(c => c.name);
+    const nameNumCols = profile.columns.filter(c =>
+        /sales|profit|revenue|price|quantity|amount|выручка|прибыль|цена|количество|сумма|доход|расход|cost/i.test(c.name)
+    ).map(c => c.name);
+    const numericCols = [...new Set([...typeNumCols, ...nameNumCols])];
 
-    // 1. Линейный график: дата + число (Sales over Time)
-    if (dateColumns.length > 0 && numericColumns.length > 0) {
-        const dateColumn = dateColumns[0];
-        const valueColumn = numericColumns[0];
+    const typeStrCols = profile.columns.filter(c => c.type === 'category' || c.type === 'date' || c.type === 'text').map(c => c.name);
+    const nameStrCols = profile.columns.filter(c =>
+        /date|category|month|year|дата|категория|месяц|год|регион|город|name|имя/i.test(c.name)
+    ).map(c => c.name);
+    const stringCols = [...new Set([...typeStrCols, ...nameStrCols])];
 
+    const dateCol = stringCols.find(c => /date|дата|month|месяц|year|год/i.test(c)) || stringCols[0];
+    const categoryCol = stringCols.find(c => /category|категория|регион|город|name|имя/i.test(c)) || stringCols.find(c => c !== dateCol) || stringCols[0];
+
+    // 1. Линейный график
+    if (dateCol && numericCols.length > 0) {
         recommendations.push({
-            id: `chart_${chartIndex++}`,
+            id: 'line-1',
             chartType: 'line',
-            title: `${valueColumn.name} over Time`,
-            xColumn: dateColumn.name,
-            yColumn: valueColumn.name,
-            description: `Trend analysis of ${valueColumn.name} based on ${dateColumn.name}`,
+            title: 'Динамика показателей',
+            description: `Изменение ${numericCols[0]} во времени (${dateCol})`,
+            xColumn: dateCol,
+            yColumn: numericCols[0],
         });
     }
 
-    // 2. Столбчатый график: категория + число (Sales by Category)
-    if (categoricalColumns.length > 0 && numericColumns.length > 0) {
-        const categoryColumn = categoricalColumns[0];
-        const valueColumn = numericColumns[0];
-
+    // 2. Столбчатая диаграмма
+    if (categoryCol && numericCols.length > 0) {
         recommendations.push({
-            id: `chart_${chartIndex++}`,
+            id: 'bar-1',
             chartType: 'bar',
-            title: `${valueColumn.name} by ${categoryColumn.name}`,
-            xColumn: categoryColumn.name,
-            yColumn: valueColumn.name,
-            description: `Comparison of ${valueColumn.name} across different categories of ${categoryColumn.name}`,
+            title: 'Сравнение по категориям',
+            description: `Суммарное значение ${numericCols[0]} в разрезе ${categoryCol}`,
+            xColumn: categoryCol,
+            yColumn: numericCols[0],
         });
-    }
 
-    // 3. Scatter plot: два числа (Sales vs Profit)
-    if (numericColumns.length >= 2) {
-        const xColumn = numericColumns[0];
-        const yColumn = numericColumns[1];
-
+        // 3. Круговая диаграмма
         recommendations.push({
-            id: `chart_${chartIndex++}`,
+            id: 'pie-1',
+            chartType: 'pie',
+            title: 'Структура и доли',
+            description: `Распределение ${numericCols[0]} по категориям (${categoryCol})`,
+            xColumn: categoryCol,
+            yColumn: numericCols[0],
+        });
+    }
+
+    // 4. Scatter plot
+    if (numericCols.length >= 2) {
+        recommendations.push({
+            id: 'scatter-1',
             chartType: 'scatter',
-            title: `${xColumn.name} vs ${yColumn.name}`,
-            xColumn: xColumn.name,
-            yColumn: yColumn.name,
-            description: `Correlation between ${xColumn.name} and ${yColumn.name}`,
+            title: 'Корреляция показателей',
+            description: `Взаимосвязь между ${numericCols[0]} и ${numericCols[1]}`,
+            xColumn: numericCols[0],
+            yColumn: numericCols[1],
+        });
+
+        // 5. Heatmap (тепловая карта корреляций)
+        recommendations.push({
+            id: 'heatmap-1',
+            chartType: 'heatmap',
+            title: 'Тепловая карта корреляций',
+            description: 'Взаимосвязь между всеми числовыми показателями',
+            xColumn: numericCols[0],
+            yColumn: numericCols[1],
         });
     }
 
-    return recommendations;
-}
-
-// Агрегация данных для столбчатого графика (SUM по категориям)
-export function aggregateByCategory(
-    data: DataRow[],
-    categoryColumn: string,
-    valueColumn: string
-): ChartDataPoint[] {
-    const aggregated = new Map<string, number>();
-
-    for (const row of data) {
-        const category = String(row[categoryColumn] ?? 'Unknown').trim();
-        const value = extractNumericValue(row[valueColumn]);
-
-        if (value !== null) {
-            const current = aggregated.get(category) || 0;
-            aggregated.set(category, current + value);
-        }
-    }
-
-    return Array.from(aggregated.entries())
-        .map(([category, total]) => ({
-            [categoryColumn]: category,
-            [valueColumn]: total,
-        }))
-        .sort((a, b) => (b[valueColumn] as number) - (a[valueColumn] as number));
-}
-
-// Подготовка данных для линейного графика (временной ряд)
-export function prepareTimeSeriesData(
-    data: DataRow[],
-    dateColumn: string,
-    valueColumn: string
-): ChartDataPoint[] {
-    const grouped = new Map<string, number>();
-
-    for (const row of data) {
-        const date = String(row[dateColumn] ?? '').trim();
-        const value = extractNumericValue(row[valueColumn]);
-
-        if (date && value !== null) {
-            const current = grouped.get(date) || 0;
-            grouped.set(date, current + value);
-        }
-    }
-
-    return Array.from(grouped.entries())
-        .map(([date, total]) => ({
-            [dateColumn]: date,
-            [valueColumn]: total,
-        }))
-        .sort((a, b) => {
-            const dateA = new Date(String(a[dateColumn]));
-            const dateB = new Date(String(b[dateColumn]));
-            return dateA.getTime() - dateB.getTime();
-        });
-}
-
-// Подготовка данных для scatter-графика
-export function prepareScatterData(
-    data: DataRow[],
-    xColumn: string,
-    yColumn: string
-): ChartDataPoint[] {
-    const result: ChartDataPoint[] = [];
-
-    for (const row of data) {
-        const x = extractNumericValue(row[xColumn]);
-        const y = extractNumericValue(row[yColumn]);
-
-        if (x !== null && y !== null) {
-            result.push({
-                [xColumn]: x,
-                [yColumn]: y,
-            });
-        }
-    }
-
-    return result;
-}
-
-// Извлекает числовое значение из строки
-function extractNumericValue(value: string | number | null): number | null {
-    if (value === null || value === undefined) return null;
-    if (typeof value === 'number') return isNaN(value) ? null : value;
-
-    const str = String(value)
-        .replace(/[$€£₽,\s]/g, '')
-        .replace(',', '.')
-        .trim();
-
-    const num = parseFloat(str);
-    return isNaN(num) ? null : num;
-}
-
-// Получает данные для конкретного графика на основе рекомендации
-export function getChartData(
-    recommendation: ChartRecommendation,
-    data: DataRow[]
-): ChartDataPoint[] {
-    switch (recommendation.chartType) {
-        case 'line':
-            return prepareTimeSeriesData(data, recommendation.xColumn, recommendation.yColumn);
-        case 'bar':
-            return aggregateByCategory(data, recommendation.xColumn, recommendation.yColumn);
-        case 'scatter':
-            return prepareScatterData(data, recommendation.xColumn, recommendation.yColumn);
-        default:
-            return [];
-    }
+    return recommendations.slice(0, 5);
 }

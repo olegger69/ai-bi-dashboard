@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { ThemeProvider } from './core/ThemeContext';
+import './i18n'; // <-- ДОБАВЛЕНО: импорт i18n
 import './ui/styles/variables.css';
 import './ui/styles/base.css';
 import './ui/styles/components.css';
