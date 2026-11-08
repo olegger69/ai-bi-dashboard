@@ -1,147 +1,73 @@
-import { DatasetProfile, AIInsight, KPI } from '../core/types';
+import { DatasetProfile, KPI, AIInsight } from '../core/types';
 import { AnomalyResult, TrendResult } from '../core/anomalyDetector';
-import { getDatasetSummary } from '../core/profiler';
 
-// Главная функция: генерирует инсайты на основе правил
 export function generateMockInsights(
     profile: DatasetProfile,
     kpis: KPI[],
     anomalies: AnomalyResult[],
     trends: TrendResult[]
 ): AIInsight {
-    const summary = generateSummary(profile, kpis);
-    const trendInsights = generateTrendInsights(trends);
-    // Используем profile.totalRows вместо data.length
-    const anomalyInsights = generateAnomalyInsights(anomalies, profile.totalRows);
-    const recommendations = generateRecommendations(trends, anomalies, kpis);
+    const kpiSummary = kpis.length > 0
+        ? kpis.map(k => `${k.label}: ${k.value}`).join(', ')
+        : 'KPI не рассчитаны';
+
+    const trendSummary = trends.length > 0
+        ? trends.map(t => {
+            const direction = t.direction === 'up' ? 'рост' : t.direction === 'down' ? 'снижение' : 'стабильность';
+            return `${t.columnName}: наблюдается ${direction} на ${Math.abs(t.changePercent).toFixed(1)}%`;
+        }).join('; ')
+        : 'Явных трендов не выявлено';
+
+    const anomalySummary = anomalies.length > 0
+        ? `Обнаружено ${anomalies.length} аномалий: ${anomalies.map(a => `${a.columnName} (${a.outlierCount} выбросов)`).join(', ')}`
+        : 'Статистически значимых аномалий не обнаружено';
+
+    const recommendations = generateRecommendations(kpis, anomalies, trends);
 
     return {
-        summary,
-        trends: trendInsights,
-        anomalies: anomalyInsights,
+        summary: `Датасет содержит ${profile.totalRows} записей и ${profile.totalColumns} параметров. ${kpiSummary}.`,
+        trends: trends.length > 0
+            ? trends.map(t => {
+                const direction = t.direction === 'up' ? 'рост' : t.direction === 'down' ? 'снижение' : 'стабильность';
+                return `${t.columnName}: наблюдается ${direction} на ${Math.abs(t.changePercent).toFixed(1)}%`;
+            })
+            : [trendSummary],
+        anomalies: anomalies.length > 0
+            ? anomalies.map(a => `${a.columnName}: обнаружено ${a.outlierCount} выбросов. Диапазон нормы: ${a.lowerBound.toFixed(2)} – ${a.upperBound.toFixed(2)}`)
+            : [anomalySummary],
         recommendations,
         mode: 'mock',
         generatedAt: new Date().toISOString(),
     };
 }
 
-// Генерирует сводку по датасету
-function generateSummary(
-    profile: DatasetProfile,
-    kpis: KPI[]
-): string {
-    const summary = getDatasetSummary(profile);
-    const revenueKpi = kpis.find(k => k.id === 'total_revenue');
-    const profitKpi = kpis.find(k => k.id === 'total_profit');
-
-    let text = `Набор данных содержит ${summary.totalRows} записей по ${summary.totalColumns} параметрам. `;
-
-    if (revenueKpi) {
-        text += `Общая выручка составляет ${revenueKpi.value}. `;
-    }
-
-    if (profitKpi) {
-        text += `Общая прибыль: ${profitKpi.value}. `;
-    }
-
-    if (summary.totalMissingValues > 0) {
-        text += `Обнаружено ${summary.totalMissingValues} пропущенных значений (${summary.missingPercentage}%). `;
-    }
-
-    text += 'Распределение показывает стабильную динамику с ключевыми точками роста.';
-
-    return text;
-}
-
-// Генерирует инсайты о трендах
-function generateTrendInsights(trends: TrendResult[]): string[] {
-    const insights: string[] = [];
-
-    for (const trend of trends) {
-        const direction = trend.direction === 'up' ? 'рост'
-            : trend.direction === 'down' ? 'снижение'
-                : 'стабильность';
-
-        insights.push(
-            `${trend.columnName}: наблюдается ${direction} на ${Math.abs(trend.changePercent).toFixed(1)}% ` +
-            `(среднее: ${trend.firstHalfAvg.toFixed(2)} → ${trend.secondHalfAvg.toFixed(2)})`
-        );
-    }
-
-    if (insights.length === 0) {
-        insights.push('Значимых трендов не обнаружено. Данные распределены равномерно.');
-    }
-
-    return insights;
-}
-
-// Генерирует инсайты об аномалиях
-function generateAnomalyInsights(anomalies: AnomalyResult[], totalRows: number): string[] {
-    const insights: string[] = [];
-
-    for (const anomaly of anomalies) {
-        const percentage = ((anomaly.outlierCount / totalRows) * 100).toFixed(1);
-        const highOutliers = anomaly.outliers.filter(o => o.reason === 'high');
-        const lowOutliers = anomaly.outliers.filter(o => o.reason === 'low');
-
-        let text = `${anomaly.columnName}: обнаружено ${anomaly.outlierCount} выбросов (${percentage}% данных). `;
-
-        if (highOutliers.length > 0) {
-            const maxVal = Math.max(...highOutliers.map(o => o.value));
-            text += `Высоких значений: ${highOutliers.length} (макс. ${maxVal.toFixed(2)}). `;
-        }
-
-        if (lowOutliers.length > 0) {
-            text += `Низких значений: ${lowOutliers.length}.`;
-        }
-
-        insights.push(text);
-    }
-
-    if (insights.length === 0) {
-        insights.push('Статистически значимых аномалий не обнаружено.');
-    }
-
-    return insights;
-}
-
-// Генерирует рекомендации
+// ИСПРАВЛЕНО: добавлено '_' перед kpis, чтобы TypeScript не ругался
 function generateRecommendations(
-    trends: TrendResult[],
+    _kpis: KPI[],
     anomalies: AnomalyResult[],
-    kpis: KPI[]
+    trends: TrendResult[]
 ): string[] {
     const recommendations: string[] = [];
 
-    const decliningTrend = trends.find(t => t.direction === 'down');
-    if (decliningTrend) {
-        recommendations.push(
-            `Проанализировать причины снижения ${decliningTrend.columnName} (падение на ${Math.abs(decliningTrend.changePercent).toFixed(1)}%).`
-        );
-    }
+    // Рекомендации на основе трендов
+    trends.forEach(t => {
+        if (t.direction === 'down') {
+            recommendations.push(`Проанализировать причины снижения ${t.columnName} и разработать план восстановления`);
+        } else if (t.direction === 'up') {
+            recommendations.push(`Масштабировать факторы роста ${t.columnName}`);
+        }
+    });
 
-    const growingTrend = trends.find(t => t.direction === 'up');
-    if (growingTrend) {
-        recommendations.push(
-            `Масштабировать факторы роста ${growingTrend.columnName} (рост на ${growingTrend.changePercent.toFixed(1)}%).`
-        );
-    }
-
+    // Рекомендации на основе аномалий
     if (anomalies.length > 0) {
-        const maxAnomaly = anomalies.reduce((max, a) => a.outlierCount > max.outlierCount ? a : max);
-        recommendations.push(
-            `Исследовать ${maxAnomaly.outlierCount} выбросов в колонке ${maxAnomaly.columnName} для выявления причин.`
-        );
+        recommendations.push(`Исследовать ${anomalies.length} выявленных аномалий для понимания их природы`);
     }
 
-    const profitMargin = kpis.find(k => k.id === 'profit_margin');
-    if (profitMargin && profitMargin.trend === 'down') {
-        recommendations.push('Оптимизировать расходы для повышения маржинальности.');
+    // Общие рекомендации
+    if (recommendations.length < 2) {
+        recommendations.push('Продолжать регулярный мониторинг ключевых показателей');
+        recommendations.push('Сравнить текущие результаты с предыдущими периодами');
     }
 
-    if (recommendations.length === 0) {
-        recommendations.push('Продолжать мониторинг ключевых показателей.');
-    }
-
-    return recommendations;
+    return recommendations.slice(0, 4);
 }

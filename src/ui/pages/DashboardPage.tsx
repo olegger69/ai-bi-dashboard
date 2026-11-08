@@ -28,7 +28,6 @@ import LanguageToggle from '../components/LanguageToggle';
 
 const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
-// Компонент тепловой карты корреляций
 function HeatmapChart({ data, columns }: { data: DataRow[]; columns: ColumnMeta[] }) {
     const correlationMatrix = useMemo(() => calculateCorrelationMatrix(data, columns), [data, columns]);
 
@@ -152,7 +151,6 @@ export default function DashboardPage() {
         return calculateKPIs(filteredData, profile);
     }, [filteredData, profile]);
 
-    // ИСПОЛЬЗУЕМ findDateColumn, splitDataByPeriods, compareKPIs
     const kpisWithComparison = useMemo(() => {
         if (!comparisonMode || filteredData.length === 0) return kpis;
 
@@ -171,7 +169,6 @@ export default function DashboardPage() {
     const availableColumns = state ? Object.keys(state.rawData[0] || {}) : [];
     const insights = state?.insights;
 
-    // ИСПОЛЬЗУЕМ getComparisonLineData
     const comparisonLineData = useMemo(() => {
         if (!comparisonMode) return null;
         const dateCol = findDateColumn(filteredData);
@@ -368,7 +365,7 @@ export default function DashboardPage() {
                                                         <LineChart width={750} height={350} data={comparisonLineData} margin={{ top: 10, right: 30, bottom: 10, left: 0 }}>
                                                             <CartesianGrid strokeDasharray="3 3" />
                                                             <XAxis dataKey="date" />
-                                                            <YAxis />
+                                                            <YAxis domain={['auto', 'auto']} />
                                                             <Tooltip />
                                                             <Legend />
                                                             <Line type="monotone" dataKey="Period 1" stroke="#2563eb" strokeWidth={2} dot={{ r: 4 }} />
@@ -378,7 +375,7 @@ export default function DashboardPage() {
                                                         <LineChart width={750} height={350} data={chartData} margin={{ top: 10, right: 30, bottom: 10, left: 0 }}>
                                                             <CartesianGrid strokeDasharray="3 3" />
                                                             <XAxis dataKey={rec.xColumn} />
-                                                            <YAxis />
+                                                            <YAxis domain={['auto', 'auto']} />
                                                             <Tooltip />
                                                             <Legend />
                                                             <Line type="monotone" dataKey={rec.yColumn} stroke="#2563eb" strokeWidth={2} dot={{ r: 4 }} />
@@ -389,7 +386,7 @@ export default function DashboardPage() {
                                                         <BarChart width={750} height={350} data={chartData} margin={{ top: 10, right: 30, bottom: 10, left: 0 }}>
                                                             <CartesianGrid strokeDasharray="3 3" />
                                                             <XAxis dataKey="name" />
-                                                            <YAxis />
+                                                            <YAxis domain={['auto', 'auto']} />
                                                             <Tooltip />
                                                             <Legend />
                                                             <Bar dataKey="value" fill="#2563eb" />
@@ -398,11 +395,43 @@ export default function DashboardPage() {
                                                     {rec.chartType === 'scatter' && (
                                                         <ScatterChart width={750} height={350} margin={{ top: 10, right: 30, bottom: 10, left: 0 }}>
                                                             <CartesianGrid strokeDasharray="3 3" />
-                                                            <XAxis type="number" dataKey={rec.xColumn} name={rec.xColumn} />
-                                                            <YAxis type="number" dataKey={rec.yColumn} name={rec.yColumn} />
-                                                            <Tooltip cursor={{ strokeDasharray: '3 3' }} />
+                                                            <XAxis
+                                                                type="number"
+                                                                dataKey={rec.xColumn}
+                                                                name={rec.xColumn}
+                                                                domain={['auto', 'auto']}
+                                                                label={{ value: rec.xColumn, position: 'insideBottom', offset: -5, style: { fill: '#94a3b8' } }}
+                                                            />
+                                                            <YAxis
+                                                                type="number"
+                                                                dataKey={rec.yColumn}
+                                                                name={rec.yColumn}
+                                                                domain={['auto', 'auto']}
+                                                                label={{ value: rec.yColumn, angle: -90, position: 'insideLeft', style: { fill: '#94a3b8' } }}
+                                                            />
+                                                            <Tooltip
+                                                                cursor={{ strokeDasharray: '3 3' }}
+                                                                content={({ active, payload }) => {
+                                                                    if (active && payload && payload.length) {
+                                                                        const data = payload[0].payload;
+                                                                        return (
+                                                                            <div style={{ background: '#1e293b', padding: '10px', borderRadius: '6px', border: '1px solid #334155', boxShadow: '0 4px 6px rgba(0,0,0,0.3)' }}>
+                                                                                <p style={{ color: '#10b981', margin: '0 0 4px 0', fontWeight: '600' }}>{rec.xColumn}: {data[rec.xColumn]}</p>
+                                                                                <p style={{ color: '#10b981', margin: 0, fontWeight: '600' }}>{rec.yColumn}: {data[rec.yColumn]}</p>
+                                                                            </div>
+                                                                        );
+                                                                    }
+                                                                    return null;
+                                                                }}
+                                                            />
                                                             <Legend />
-                                                            <Scatter name={`${rec.xColumn} vs ${rec.yColumn}`} data={chartData} fill="#10b981" />
+                                                            <Scatter
+                                                                name={`${rec.xColumn} vs ${rec.yColumn}`}
+                                                                data={chartData}
+                                                                fill="#10b981"
+                                                                fillOpacity={0.7}
+                                                                r={8}
+                                                            />
                                                         </ScatterChart>
                                                     )}
                                                     {rec.chartType === 'pie' && (

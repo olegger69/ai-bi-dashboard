@@ -1,200 +1,94 @@
-import { ColumnMeta, ColumnType, DataRow } from './types';
+import { DataRow, ColumnMeta } from './types';
 
-// Максимальное количество строк для анализа типа (оптимизация производительности)
-const MAX_SAMPLE_ROWS = 200;
+// Определяет тип колонки на основе данных
+export function detectColumnType(data: DataRow[], columnName: string): 'number' | 'category' | 'date' | 'text' {
+    const values = data
+        .map(row => row[columnName])
+        .filter(v => v !== null && v !== undefined && v !== '');
 
-// Порог уникальности для категориального типа
-// Если уникальных значений меньше этого порога ИЛИ меньше 5% от общего числа строк — считаем категориальным
-const CATEGORICAL_UNIQUE_THRESHOLD = 20;
-const CATEGORICAL_PERCENTAGE_THRESHOLD = 0.05;
+    if (values.length === 0) return 'text';
 
-// Регулярные выражения для распознавания дат
-const DATE_PATTERNS = [
-    /^\d{4}-\d{2}-\d{2}$/,                    // YYYY-MM-DD (ISO)
-    /^\d{2}\.\d{2}\.\d{4}$/,                  // DD.MM.YYYY
-    /^\d{2}\/\d{2}\/\d{4}$/,                  // MM/DD/YYYY или DD/MM/YYYY
-    /^\d{4}\/\d{2}\/\d{2}$/,                  // YYYY/MM/DD
-    /^\d{2}-\d{2}-\d{4}$/,                    // DD-MM-YYYY
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/,   // ISO 8601 с временем
-    /^\d{2}\.\d{2}\.\d{2}$/,                  // YY.MM.DD
-];
+    // Проверяем, является ли колонка числовой
+    const numericCount = values.filter(v => {
+        if (typeof v === 'number') return !isNaN(v);
+        const str = String(v).replace(/[$€£₽,\s%]/g, '').replace(',', '.').trim();
+        return !isNaN(parseFloat(str));
+    }).length;
 
-// Проверяет, является ли значение числом
-function isNumeric(value: string | number | null): boolean {
-    if (value === null || value === undefined || value === '') return false;
-    if (typeof value === 'number') return !isNaN(value);
-    const str = String(value).trim();
-    if (str === '') return false;
-    // Разрешаем числа с точкой, запятой (как десятичный разделитель), минусом
-    const normalized = str.replace(',', '.');
-    return !isNaN(Number(normalized)) && isFinite(Number(normalized));
-}
+    if (numericCount / values.length > 0.8) return 'number';
 
-// Проверяет, является ли значение датой
-function isDate(value: string | number | null): boolean {
-    if (value === null || value === undefined) return false;
-    const str = String(value).trim();
-    if (str === '') return false;
+    // Проверяем, является ли колонка датой
+    const dateCount = values.filter(v => {
+        const str = String(v).trim();
+        const date = new Date(str);
+        return !isNaN(date.getTime()) && str.length >= 8;
+    }).length;
 
-    // Сначала проверяем по паттернам
-    for (const pattern of DATE_PATTERNS) {
-        if (pattern.test(str)) {
-            const date = new Date(str);
-            return !isNaN(date.getTime());
-        }
-    }
+    if (dateCount / values.length > 0.8) return 'date';
 
-    // Пробуем распарсить как дату (для форматов вроде "Jan 1, 2024")
-    const date = new Date(str);
-    return !isNaN(date.getTime()) && str.length >= 6;
-}
+    // Проверяем, является ли колонка категориальной (мало уникальных значений)
+    const uniqueValues = new Set(values.map(v => String(v)));
+    if (uniqueValues.size <= 20 && uniqueValues.size / values.length < 0.5) return 'category';
 
-// Определяет тип одной колонки на основе выборки данных
-function detectColumnType(
-    values: (string | number | null)[],
-    totalRows: number
-): ColumnType {
-    // Фильтруем пустые значения
-    const nonEmptyValues = values.filter(v => v !== null && v !== undefined && String(v).trim() !== '');
-
-    if (nonEmptyValues.length === 0) return 'unknown';
-
-    // Проверяем, все ли значения числовые
-    const numericCount = nonEmptyValues.filter(v => isNumeric(v)).length;
-    if (numericCount === nonEmptyValues.length) {
-        return 'numeric';
-    }
-
-    // Проверяем, все ли значения даты
-    const dateCount = nonEmptyValues.filter(v => isDate(v)).length;
-    if (dateCount === nonEmptyValues.length && dateCount > 0) {
-        return 'date';
-    }
-
-    // Проверяем категориальность по количеству уникальных значений
-    const uniqueValues = new Set(nonEmptyValues.map(v => String(v).trim().toLowerCase()));
-    const uniqueCount = uniqueValues.size;
-
-    if (
-        uniqueCount <= CATEGORICAL_UNIQUE_THRESHOLD ||
-        uniqueCount / totalRows <= CATEGORICAL_PERCENTAGE_THRESHOLD
-    ) {
-        return 'categorical';
-    }
-
-    // Всё остальное — текст
     return 'text';
 }
 
-// Подсчитывает пропущенные значения в колонке
-function countMissing(values: (string | number | null)[]): number {
-    return values.filter(v => v === null || v === undefined || String(v).trim() === '').length;
-}
+// Создаёт метаданные колонки
+export function createColumnMeta(data: DataRow[], columnName: string): ColumnMeta {
+    const values = data
+        .map(row => row[columnName])
+        .filter(v => v !== null && v !== undefined && v !== '');
 
-// Получает топ-N значений для категориальных колонок
-function getTopValues(
-    values: (string | number | null)[],
-    n: number = 5
-): { value: string; count: number }[] {
-    const frequency = new Map<string, number>();
+    const type = detectColumnType(data, columnName);
+    const uniqueValues = new Set(values.map(v => String(v)));
+    const missingCount = data.length - values.length;
 
-    for (const value of values) {
-        if (value !== null && value !== undefined && String(value).trim() !== '') {
-            const normalized = String(value).trim();
-            frequency.set(normalized, (frequency.get(normalized) || 0) + 1);
+    const meta: ColumnMeta = {
+        name: columnName,
+        type,
+        uniqueCount: uniqueValues.size,
+        missingCount,
+    };
+
+    // Для числовых колонок добавляем статистику
+    if (type === 'number') {
+        const numericValues = values
+            .map(v => {
+                if (typeof v === 'number') return v;
+                const str = String(v).replace(/[$€£₽,\s%]/g, '').replace(',', '.').trim();
+                return parseFloat(str);
+            })
+            .filter(v => !isNaN(v));
+
+        if (numericValues.length > 0) {
+            meta.min = Math.min(...numericValues);
+            meta.max = Math.max(...numericValues);
+            meta.mean = numericValues.reduce((a, b) => a + b, 0) / numericValues.length;
+
+            const sorted = [...numericValues].sort((a, b) => a - b);
+            const mid = Math.floor(sorted.length / 2);
+            meta.median = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+
+            const variance = numericValues.reduce((sum, val) => sum + Math.pow(val - meta.mean!, 2), 0) / numericValues.length;
+            meta.stdDev = Math.sqrt(variance);
         }
     }
 
-    return Array.from(frequency.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, n)
-        .map(([value, count]) => ({ value, count }));
-}
-
-// Вычисляет базовую статистику для числовой колонки
-function getNumericStats(values: (string | number | null)[]): {
-    min: number;
-    max: number;
-    mean: number;
-} | null {
-    const numericValues = values
-        .filter(v => isNumeric(v))
-        .map(v => {
-            const str = String(v).replace(',', '.');
-            return Number(str);
+    // Для категориальных колонок добавляем топ значений
+    if (type === 'category' || type === 'text') {
+        const valueCounts = new Map<string, number>();
+        values.forEach(v => {
+            const str = String(v);
+            valueCounts.set(str, (valueCounts.get(str) || 0) + 1);
         });
 
-    if (numericValues.length === 0) return null;
+        const topValues = Array.from(valueCounts.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([value, count]) => ({ value, count }));
 
-    const min = Math.min(...numericValues);
-    const max = Math.max(...numericValues);
-    const mean = numericValues.reduce((sum, v) => sum + v, 0) / numericValues.length;
+        meta.topValues = topValues;
+    }
 
-    return { min, max, mean };
-}
-
-// Главная функция: профилирует все колонки датасета
-export function detectColumnTypes(data: DataRow[]): ColumnMeta[] {
-    if (data.length === 0) return [];
-
-    // Получаем имена всех колонок из первой строки
-    const columnNames = Object.keys(data[0]);
-
-    // Берем выборку для анализа (первые MAX_SAMPLE_ROWS строк)
-    const sampleData = data.slice(0, MAX_SAMPLE_ROWS);
-
-    return columnNames.map(columnName => {
-        // Извлекаем все значения колонки
-        const values = sampleData.map(row => row[columnName] ?? null);
-
-        // Определяем тип
-        const type = detectColumnType(values, data.length);
-
-        // Считаем пропуски
-        const missingCount = countMissing(values);
-
-        // Считаем уникальные значения
-        const uniqueValues = new Set(
-            values.filter(v => v !== null && v !== undefined && String(v).trim() !== '')
-                .map(v => String(v).trim().toLowerCase())
-        );
-        const uniqueCount = uniqueValues.size;
-
-        // Формируем метаданные
-        const meta: ColumnMeta = {
-            name: columnName,
-            type,
-            missingCount,
-            uniqueCount,
-        };
-
-        // Добавляем специфичную статистику в зависимости от типа
-        if (type === 'numeric') {
-            const stats = getNumericStats(values);
-            if (stats) {
-                meta.min = stats.min;
-                meta.max = stats.max;
-                meta.mean = stats.mean;
-            }
-        } else if (type === 'categorical') {
-            meta.topValues = getTopValues(values, 5);
-        }
-
-        return meta;
-    });
-}
-
-// Вспомогательная функция: проверяет, является ли колонка числовой
-export function isNumericColumn(column: ColumnMeta): boolean {
-    return column.type === 'numeric';
-}
-
-// Вспомогательная функция: проверяет, является ли колонка датой
-export function isDateColumn(column: ColumnMeta): boolean {
-    return column.type === 'date';
-}
-
-// Вспомогательная функция: проверяет, является ли колонка категориальной
-export function isCategoricalColumn(column: ColumnMeta): boolean {
-    return column.type === 'categorical';
+    return meta;
 }

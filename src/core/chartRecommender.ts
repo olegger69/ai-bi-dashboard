@@ -15,9 +15,27 @@ function aggregateData(data: DataRow[], xCol: string, yCol: string) {
         .sort((a, b) => b.value - a.value);
 }
 
+function prepareNumericData(data: DataRow[], xCol: string, yCol: string) {
+    return data.map(row => {
+        const xVal = row[xCol];
+        const rawY = row[yCol];
+        const yVal = typeof rawY === 'number'
+            ? rawY
+            : parseFloat(String(rawY).replace(/[^0-9.-]+/g, '')) || 0;
+        return {
+            ...row,
+            [xCol]: xVal,
+            [yCol]: yVal,
+        };
+    });
+}
+
 export function getChartData(rec: ChartRecommendation, data: DataRow[]) {
     if (rec.chartType === 'pie' || rec.chartType === 'bar') {
         return aggregateData(data, rec.xColumn, rec.yColumn);
+    }
+    if (rec.chartType === 'line' || rec.chartType === 'scatter') {
+        return prepareNumericData(data, rec.xColumn, rec.yColumn);
     }
     return data;
 }
@@ -25,22 +43,27 @@ export function getChartData(rec: ChartRecommendation, data: DataRow[]) {
 export function recommendCharts(profile: DatasetProfile, _data: DataRow[]): ChartRecommendation[] {
     const recommendations: ChartRecommendation[] = [];
 
-    const typeNumCols = profile.columns.filter(c => c.type === 'number').map(c => c.name);
-    const nameNumCols = profile.columns.filter(c =>
-        /sales|profit|revenue|price|quantity|amount|выручка|прибыль|цена|количество|сумма|доход|расход|cost/i.test(c.name)
-    ).map(c => c.name);
-    const numericCols = [...new Set([...typeNumCols, ...nameNumCols])];
+    // СТРОГИЙ поиск числовых колонок — только тип 'number' И БЕЗ "date" в названии
+    const numericCols = profile.columns
+        .filter((c) => c.type === 'number' && !/date|дата|time|время/i.test(c.name))
+        .map((c) => c.name);
 
-    const typeStrCols = profile.columns.filter(c => c.type === 'category' || c.type === 'date' || c.type === 'text').map(c => c.name);
-    const nameStrCols = profile.columns.filter(c =>
-        /date|category|month|year|дата|категория|месяц|год|регион|город|name|имя/i.test(c.name)
-    ).map(c => c.name);
-    const stringCols = [...new Set([...typeStrCols, ...nameStrCols])];
+    // Все нечисловые колонки
+    const stringCols = profile.columns
+        .filter((c) => c.type === 'category' || c.type === 'date' || c.type === 'text')
+        .map((c) => c.name);
 
-    const dateCol = stringCols.find(c => /date|дата|month|месяц|year|год/i.test(c)) || stringCols[0];
-    const categoryCol = stringCols.find(c => /category|категория|регион|город|name|имя/i.test(c)) || stringCols.find(c => c !== dateCol) || stringCols[0];
+    // Ищем колонку даты — по названию ИЛИ по типу 'date'
+    const dateCol = profile.columns.find(c =>
+        c.type === 'date' || /date|дата|month|месяц|year|год|time|время/i.test(c.name)
+    )?.name || stringCols[0];
 
-    // 1. Линейный график
+    // Ищем категориальную колонку (не дату)
+    const categoryCol = stringCols.find(c =>
+        /category|категория|регион|город|name|имя/i.test(c) && c !== dateCol
+    ) || stringCols.find(c => c !== dateCol) || stringCols[0];
+
+    // 1. Линейный график (только если есть дата И числовая колонка)
     if (dateCol && numericCols.length > 0) {
         recommendations.push({
             id: 'line-1',
@@ -74,7 +97,7 @@ export function recommendCharts(profile: DatasetProfile, _data: DataRow[]): Char
         });
     }
 
-    // 4. Scatter plot
+    // 4. Scatter plot — ТОЛЬКО если есть минимум 2 РЕАЛЬНЫХ числовых колонки (без дат)
     if (numericCols.length >= 2) {
         recommendations.push({
             id: 'scatter-1',
@@ -85,7 +108,7 @@ export function recommendCharts(profile: DatasetProfile, _data: DataRow[]): Char
             yColumn: numericCols[1],
         });
 
-        // 5. Heatmap (тепловая карта корреляций)
+        // 5. Heatmap
         recommendations.push({
             id: 'heatmap-1',
             chartType: 'heatmap',
