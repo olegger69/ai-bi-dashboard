@@ -482,3 +482,4 @@ MIT License. Свободно используйте для личных и ко
 npm test              # Запустить все тесты
 npm run test:watch    # Режим наблюдения
 npm run test:coverage # Отчёт о покрытии
+
